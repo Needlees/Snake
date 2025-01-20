@@ -224,11 +224,11 @@ class App:
         self.win.bind('<Right>', lambda event: self.change_direction('right'))
         self.win.bind('<Up>', lambda event: self.change_direction('up'))
         self.win.bind('<Down>', lambda event: self.change_direction('down'))
+        self.win.protocol("WM_DELETE_WINDOW", self.close)
+
         self.before_new_game()
 
     def speed_up(self, event):
-        if self.old_game_speed == self.game_speed:
-            self.old_game_speed = self.game_speed
         self.game_speed = 10
 
     def win_init(self):
@@ -251,15 +251,14 @@ class App:
         self.new_game_text = self.canvas.create_text(self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
                                 font=('consolas', 25), text="Press any button to\nstart a new game...", fill="white", tag="newgame")
 
-        self.game_speed = self.old_game_speed
-
         self.win.unbind('<space>')
         self.win.bind('<KeyPress>', self.new_game)
+        self.game_speed = self.old_game_speed
 
         self.menu_bar.entryconfig(1, state="normal")
         self.menu_bar.entryconfig(2, state="normal")
 
-        self.thread = threading.Thread(target=self.blink_text)
+        self.thread = threading.Thread(target=self.blink_text, daemon=True)
         self.thread.start()
 
     def blink_text(self):
@@ -268,13 +267,13 @@ class App:
 
         while self.thread_is_alive:
             try:
-                self.current_color = self.canvas.itemconfigure("newgame")["fill"][4]
+                current_color = self.canvas.itemconfigure("newgame")["fill"][4]
 
-                if self.current_color == colors[0]:
+                if current_color == colors[0]:
                     self.canvas.itemconfigure("newgame", fill=colors[1])
-                elif self.current_color == colors[1]:
+                elif current_color == colors[1]:
                     self.canvas.itemconfigure("newgame", fill=colors[2])
-                elif self.current_color == colors[2]:
+                elif current_color == colors[2]:
                     self.canvas.itemconfigure("newgame", fill=colors[0])
                 else:
                     self.canvas.itemconfigure("newgame", fill=colors[1])
@@ -284,8 +283,6 @@ class App:
 
     def close(self):
         self.thread_is_alive = False
-        if self.thread.is_alive():
-            del self.thread
         self.win.destroy()
 
     def run(self):
@@ -351,11 +348,11 @@ class App:
         self.before_new_game()
 
     def new_game(self, event=None):
-
         self.menu_bar.entryconfig(1, state="disabled")
         self.menu_bar.entryconfig(2, state="disabled")
 
         self.thread_is_alive = False
+        self.game_speed = self.old_game_speed
 
         self.win.bind('<space>', self.speed_up)
         self.win.unbind('<KeyPress>')
