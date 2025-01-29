@@ -1,8 +1,8 @@
+from time import sleep
 from tkinter import *
 from tkinter import colorchooser
-import random
-import threading
-import time
+from random import randint
+from threading import Thread
 
 GAME_WIDTH_MIN = 400
 GAME_HEIGHT_MIN = 400
@@ -24,10 +24,8 @@ class Snake:
         self.squares = []
 
         for i in range(0, app.body_parts):
-            self.coordinates.append([0, 0])
-
-        for x, y in self.coordinates:
-            square = app.canvas.create_rectangle(x, y, x + app.space_size, y + app.space_size, fill=app.snake_color, tag="snake")
+            self.coordinates.append((-i, -i))
+            square = app.canvas.create_rectangle(0, 0, app.space_size, app.space_size, fill=app.snake_color, tag="snake")
             self.squares.append(square)
 
 class Food:
@@ -38,8 +36,8 @@ class Food:
         while wrong_coordinates:
             wrong_coordinates = False
 
-            x = random.randint(0, int(app.game_width / app.space_size) - 1) * app.space_size
-            y = random.randint(0, int(app.game_height / app.space_size) - 1) * app.space_size
+            x = randint(0, int(app.game_width / app.space_size) - 1) * app.space_size
+            y = randint(0, int(app.game_height / app.space_size) - 1) * app.space_size
 
             for snake_x, snake_y in coords:
                 if snake_x == x and snake_y == y:
@@ -77,6 +75,7 @@ class Popup:
         self.game_width.grid(row=0, column=1)
         game_width_label_min_max = Label(frame, text=f"(min: {GAME_WIDTH_MIN}, max: {GAME_WIDTH_MAX})", height=2, anchor='e', justify=LEFT)
         game_width_label_min_max.grid(row=0, column=2)
+        self.game_width.bind("<FocusOut>", self.change_game_width)
 
         game_height_label = Label(frame, text="Game height:", height=2)
         game_height_label.grid(row=1, column=0)
@@ -86,6 +85,7 @@ class Popup:
         self.game_height.grid(row=1, column=1)
         game_height_label_min_max = Label(frame, text=f"(min: {GAME_HEIGHT_MIN}, max: {GAME_HEIGHT_MAX})", height=2)
         game_height_label_min_max.grid(row=1, column=2)
+        self.game_height.bind("<FocusOut>", self.change_game_height)
 
         game_speed_label = Label(frame, text="Game speed:", height=2)
         game_speed_label.grid(row=2, column=0)
@@ -95,6 +95,7 @@ class Popup:
         self.game_speed.grid(row=2, column=1)
         game_speed_label_min_max = Label(frame, text="(min: 1, max: 10)", height=2)
         game_speed_label_min_max.grid(row=2, column=2)
+        self.game_speed.bind("<FocusOut>", self.change_game_speed)
 
         space_size_label = Label(frame, text="Space size:", height=2)
         space_size_label.grid(row=3, column=0)
@@ -104,6 +105,7 @@ class Popup:
         self.space_size.grid(row=3, column=1)
         space_size_label_min_max = Label(frame, text="(min: 10, max: 100, step: 10)", height=2)
         space_size_label_min_max.grid(row=3, column=2)
+        self.space_size.bind("<FocusOut>", self.change_space_size)
 
         body_parts_label = Label(frame, text="Body parts:", height=2)
         body_parts_label.grid(row=4, column=0)
@@ -113,6 +115,7 @@ class Popup:
         self.body_parts.grid(row=4, column=1)
         body_parts_label_min_max = Label(frame, text="(min: 1, max: 100)", height=2)
         body_parts_label_min_max.grid(row=4, column=2)
+        self.body_parts.bind("<FocusOut>", self.change_body_parts)
 
         snake_color_label = Label(frame, text="Snake color:", height=2)
         snake_color_label.grid(row=5, column=0)
@@ -163,8 +166,23 @@ class Popup:
         self.popup.wait_window()
 
     def ok_button(self):
+
+        if self.parent.game_width != int(self.game_width.get()):
+            self.change_game_width()
+        if self.parent.game_height != int(self.game_height.get()):
+            self.change_game_height()
+        if self.parent.old_game_speed != int(self.game_speed.get()) or self.parent.game_speed != int(self.game_speed.get()):
+            self.change_game_speed()
+        if self.parent.space_size != int(self.space_size.get()):
+            self.change_space_size()
+        if self.parent.body_parts != int(self.body_parts.get()):
+            self.change_body_parts()
+
         self.popup.destroy()
-        self.parent.resize()
+
+        if self.parent.game_width != self.old_game_width or self.parent.game_height != self.old_game_height:
+            self.parent.resize()
+
         self.parent.new_game()
 
     def cancel_button(self):
@@ -197,7 +215,7 @@ class Popup:
         self.food_color.config(bg=FOOD_COLOR)
         self.background_color.config(bg=BACKGROUND_COLOR)
 
-    def change_game_width(self):
+    def change_game_width(self, Event=None):
         width = int(self.game_width.get())
 
         division_width = width/self.parent.space_size
@@ -208,11 +226,14 @@ class Popup:
             self.parent.game_width = integer_division_width * self.parent.space_size + self.parent.space_size
             self.game_width_var.set(str(self.parent.game_width))
 
-        if width == GAME_WIDTH_MAX and integer_division_width != division_width:
+        elif integer_division_width != division_width:
             self.parent.game_width = integer_division_width * self.parent.space_size
             self.game_width_var.set(str(self.parent.game_width))
 
-    def change_game_height(self):
+        else:
+            self.parent.game_width = width
+
+    def change_game_height(self, Event=None):
         height = int(self.game_height.get())
 
         division_height = height/self.parent.space_size
@@ -223,15 +244,19 @@ class Popup:
             self.parent.game_height = integer_division_height * self.parent.space_size + self.parent.space_size
             self.game_height_var.set(str(self.parent.game_height))
 
-        if height == GAME_HEIGHT_MAX and integer_division_height != division_height:
+        elif integer_division_height != division_height:
+
             self.parent.game_height = integer_division_height * self.parent.space_size
             self.game_height_var.set(str(self.parent.game_height))
 
-    def change_game_speed(self):
+        else:
+            self.parent.game_height = height
+
+    def change_game_speed(self, Event=None):
         self.parent.game_speed = int(self.game_speed.get())
         self.parent.old_game_speed = self.parent.game_speed
 
-    def change_space_size(self):
+    def change_space_size(self, Event=None):
         self.parent.space_size = int(self.space_size.get())
 
         width = int(self.game_width.get())
@@ -271,7 +296,7 @@ class Popup:
         self.game_width.config(increment=self.parent.space_size)
         self.game_height.config(increment=self.parent.space_size)
 
-    def change_body_parts(self):
+    def change_body_parts(self, Event=None):
         self.parent.body_parts = int(self.body_parts.get())
 
     def change_snake_color(self):
@@ -346,7 +371,8 @@ class App:
         self.win.geometry(f"{self.window_width}x{self.window_height}+{self.x}+{self.y}")
 
     def resize(self):
-        self.win.geometry("1900x1300")
+        # self.win.geometry(f"{GAME_WIDTH_MAX + 200}x{GAME_HEIGHT_MAX + 100}")
+        self.win.geometry("1900x1400")
         self.canvas.config(bg=self.background_color, height=self.game_height, width=self.game_width)
         self.win_init()
 
@@ -361,26 +387,19 @@ class App:
         self.menu_bar.entryconfig(1, state="normal")
         self.menu_bar.entryconfig(2, state="normal")
 
-        self.thread = threading.Thread(target=self.blink_text, daemon=True)
+        self.thread = Thread(target=self.blink_text, daemon=True)
         self.thread.start()
 
     def blink_text(self):
-        colors = ["#FF0000", "#00FF00", "#0000FF"]
+        colors = ["white", "#FF0000", "#00FF00", "#0000FF"]
         self.thread_is_alive = True
 
         while self.thread_is_alive:
             try:
+                sleep(1)
                 current_color = self.canvas.itemconfigure("newgame")["fill"][4]
-
-                if current_color == colors[0]:
-                    self.canvas.itemconfigure("newgame", fill=colors[1])
-                elif current_color == colors[1]:
-                    self.canvas.itemconfigure("newgame", fill=colors[2])
-                elif current_color == colors[2]:
-                    self.canvas.itemconfigure("newgame", fill=colors[0])
-                else:
-                    self.canvas.itemconfigure("newgame", fill=colors[1])
-                time.sleep(1)
+                next_color = colors[colors.index(current_color)-1]
+                self.canvas.itemconfigure("newgame", fill=next_color)
             except:
                 self.thread_is_alive = False
 
@@ -419,7 +438,7 @@ class App:
             self.canvas.delete(snake.squares[-1])
             del snake.squares[-1]
 
-        if self.check_collisions(snake):
+        if self.check_collisions(snake.coordinates):
             self.game_over()
         else:
             self.win.after(int(300/self.game_speed), self.next_turn, snake, food)
@@ -431,15 +450,14 @@ class App:
                 or (new_direction == 'down' and self.direction != 'up')):
             self.direction = new_direction
 
-    def check_collisions(self, snake):
-        x, y = snake.coordinates[0]
+    def check_collisions(self, coords):
 
+        x, y = coords[0]
         if (x < 0 or x >= self.game_width) or (y < 0 or y >= self.game_height):
             return True
 
-        for body_part in snake.coordinates[1:]:
-            if x == body_part[0] and y == body_part[1]:
-                return True
+        if len(coords) != len(set(coords)):
+            return True
 
         return False
 
