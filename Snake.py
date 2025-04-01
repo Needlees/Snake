@@ -1,8 +1,7 @@
-from time import sleep
+import asyncio
 from tkinter import *
 from tkinter import colorchooser
 from random import randint
-from threading import Thread
 
 GAME_WIDTH_MIN = 400
 GAME_HEIGHT_MIN = 400
@@ -54,7 +53,7 @@ class Food:
 class CustomControl:
 
     def __init__(self, params):
-        self.frame = params['frame']
+        self.parent = params['parent']
         self.label_text = params['label']
         self.row = params['row']
         self.command = params['command']
@@ -62,12 +61,12 @@ class CustomControl:
         self.default_fg = params['default_fg'] if 'default_fg' in params else "#000000"
 
         # Label before control
-        self.label = Label(self.frame, text=self.label_text, height=2)
-        self.label.grid(row=self.row, column=0)
+        label = Label(self.parent, text=self.label_text, height=2)
+        label.grid(row=self.row, column=0)
         # Control
         # Label after control
-        self.label_min_max = Label(self.frame, text=self.default_text, height=2, fg=self.default_fg)
-        self.label_min_max.grid(row=self.row, column=2)
+        label_min_max = Label(self.parent, text=self.default_text, height=2, fg=self.default_fg)
+        label_min_max.grid(row=self.row, column=2)
 
 
 class CustomColorButton(CustomControl):
@@ -77,7 +76,7 @@ class CustomColorButton(CustomControl):
         self.bg = params['bg']
 
         # Control
-        self.button = Button(self.frame, relief="sunken", borderwidth=2, bg=self.bg, width=14, command=self.command)
+        self.button = Button(self.parent, relief="sunken", borderwidth=2, bg=self.bg, width=14, command=self.command)
         self.button.grid(row=self.row, column=1)
 
 
@@ -92,7 +91,7 @@ class CustomComboBox(CustomControl):
 
         # Control
         self.string_var = StringVar(value=self.var_value)
-        self.spinbox = Spinbox(self.frame, from_=self.value_from, to=self.value_to, increment=self.increment,
+        self.spinbox = Spinbox(self.parent, from_=self.value_from, to=self.value_to, increment=self.increment,
                                textvariable=self.string_var, width=14, command=self.command)
         self.spinbox.grid(row=self.row, column=1)
         self.spinbox.bind("<FocusOut>", self.command)
@@ -118,7 +117,7 @@ class Popup:
         frame.grid()
 
         self.game_width = CustomComboBox({
-            'frame': frame,
+            'parent': frame,
             'label': "Game width:",
             'row': 0,
             'var_value': self.parent.game_width,
@@ -130,7 +129,7 @@ class Popup:
         })
 
         self.game_height = CustomComboBox({
-            'frame': frame,
+            'parent': frame,
             'label': "Game height:",
             'row': 1,
             'var_value': self.parent.game_height,
@@ -142,7 +141,7 @@ class Popup:
         })
 
         self.game_speed = CustomComboBox({
-            'frame': frame,
+            'parent': frame,
             'label': "Game speed:",
             'row': 2,
             'var_value': self.parent.game_speed,
@@ -153,7 +152,7 @@ class Popup:
         })
 
         self.space_size = CustomComboBox({
-            'frame': frame,
+            'parent': frame,
             'label': "Space size:",
             'row': 3,
             'var_value': self.parent.space_size,
@@ -165,7 +164,7 @@ class Popup:
         })
 
         self.body_parts = CustomComboBox({
-            'frame': frame,
+            'parent': frame,
             'label': "Body parts:",
             'row': 4,
             'var_value': self.parent.body_parts,
@@ -176,7 +175,7 @@ class Popup:
         })
 
         self.snake_color = CustomColorButton({
-            'frame': frame,
+            'parent': frame,
             'label': "Snake color:",
             'row': 5,
             'bg': self.parent.snake_color,
@@ -186,7 +185,7 @@ class Popup:
         })
 
         self.food_color = CustomColorButton({
-            'frame': frame,
+            'parent': frame,
             'label': "Food color:",
             'row': 6,
             'bg': self.parent.food_color,
@@ -196,7 +195,7 @@ class Popup:
         })
 
         self.background_color = CustomColorButton({
-            'frame': frame,
+            'parent': frame,
             'label': "Background:",
             'row': 7,
             'bg': self.parent.background_color,
@@ -406,8 +405,8 @@ class App:
 
         self.score = 0
         self.direction = 'down'
-        self.thread_is_alive = False
         self.old_game_speed = self.game_speed
+        self.stop_task = True
 
         self.label = Label(self.win, text="Score: {}".format(self.score), font=('consolas', 40))
         self.label.pack()
@@ -423,13 +422,23 @@ class App:
 
         self.win_init()
 
+        self.win.protocol("WM_DELETE_WINDOW", self.close)
+
+        self.before_new_game()
+
+    def bind_keys(self):
         self.win.bind('<Left>', lambda event: self.change_direction('left'))
         self.win.bind('<Right>', lambda event: self.change_direction('right'))
         self.win.bind('<Up>', lambda event: self.change_direction('up'))
         self.win.bind('<Down>', lambda event: self.change_direction('down'))
-        self.win.protocol("WM_DELETE_WINDOW", self.close)
+        self.win.bind('<space>', self.speed_up)
 
-        self.before_new_game()
+    def unbind_keys(self):
+        self.win.unbind('<Left>')
+        self.win.unbind('<Right>')
+        self.win.unbind('<Up>')
+        self.win.unbind('<Down>')
+        self.win.unbind('<space>')
 
     def speed_up(self, event):
         self.game_speed = 10
@@ -452,36 +461,56 @@ class App:
         self.win_init()
 
     def before_new_game(self):
-        self.new_game_text = self.canvas.create_text(self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
-                                                     font=('consolas', 25),
-                                                     text="Press any button to\nstart a new game...", fill="white",
-                                                     tag="newgame")
+        self.new_game_text = self.canvas.create_text(
+            self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
+            font=('consolas', 25),
+            text="Press any key to\nstart a new game...", fill="#FFFFFF",
+            tag="newgame"
+        )
 
-        self.win.unbind('<space>')
-        self.win.bind('<KeyPress>', self.new_game)
         self.game_speed = self.old_game_speed
+        self.unbind_keys()
 
         self.menu_bar.entryconfig(1, state="normal")
         self.menu_bar.entryconfig(2, state="normal")
 
-        self.thread = Thread(target=self.blink_text, daemon=True)
-        self.thread.start()
+        if self.stop_task:
+            asyncio.run(self.wait_keypress())
 
-    def blink_text(self):
-        colors = ["white", "#FF0000", "#00FF00", "#0000FF"]
-        self.thread_is_alive = True
+    async def blink_text(self):
+        colors = ["#FFFFFF", "#FF0000", "#00FF00", "#0000FF"]
 
-        while self.thread_is_alive:
-            try:
-                sleep(1)
-                current_color = self.canvas.itemconfigure("newgame")["fill"][4]
-                next_color = colors[colors.index(current_color) - 1]
-                self.canvas.itemconfigure("newgame", fill=next_color)
-            except:
-                self.thread_is_alive = False
+        while True:
+            current_color = self.canvas.itemconfigure("newgame")["fill"][4]
+            next_color = colors[colors.index(current_color) - 1]
+            self.canvas.itemconfigure("newgame", fill=next_color)
+            await asyncio.sleep(1)
+
+    async def win_update(self):
+        while True:
+            self.win.update()
+            await asyncio.sleep(0.01)
+
+    async def wait_keypress(self):
+        self.stop_task = False
+        self.win.bind("<KeyPress>", self.new_game)
+
+        blink_text_task = asyncio.create_task(self.blink_text())
+        win_update_task = asyncio.create_task(self.win_update())
+
+        while not self.stop_task:
+            await asyncio.sleep(0.1)
+
+        blink_text_task.cancel()
+
+        try:
+            await blink_text_task
+            await win_update_task
+        except asyncio.CancelledError:
+            print("\nАсинхронная задача остановлена!")
 
     def close(self):
-        self.thread_is_alive = False
+        self.stop_task = True
         self.win.destroy()
 
     def run(self):
@@ -540,24 +569,27 @@ class App:
 
     def game_over(self):
         self.canvas.delete(ALL)
-        self.canvas.create_text(self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2 - 120,
-                                font=('consolas', 60), text="GAME OVER", fill="red", tag="gameover")
+        self.canvas.create_text(
+            self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2 - 120,
+            font=('consolas', 60),
+            text="GAME OVER",
+            fill="red",
+            tag="gameover"
+        )
 
         self.before_new_game()
 
     def new_game(self, event=None):
+        self.stop_task = True
         self.menu_bar.entryconfig(1, state="disabled")
         self.menu_bar.entryconfig(2, state="disabled")
 
-        self.thread_is_alive = False
-
-        self.win.bind('<space>', self.speed_up)
-        self.win.unbind('<KeyPress>')
         self.canvas.delete(ALL)
 
         self.score = 0
         self.direction = 'down'
         self.label.config(text="Score: 0")
+        self.bind_keys()
 
         self.snake = Snake(self)
         self.food = Food(self, self.snake.coordinates)
@@ -565,7 +597,6 @@ class App:
         self.next_turn(self.snake, self.food)
 
     def options(self):
-        self.thread_is_alive = False
         popup = Popup(self)
 
 
