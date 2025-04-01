@@ -31,21 +31,13 @@ class Snake:
 
 
 class Food:
-    def __init__(self, app, coords):
-
-        wrong_coordinates = True
-
-        while wrong_coordinates:
-            wrong_coordinates = False
-
+    def __init__(self, app, snake_coords):
+        while True:
             x = randint(0, int(app.game_width / app.space_size) - 1) * app.space_size
             y = randint(0, int(app.game_height / app.space_size) - 1) * app.space_size
-
-            for snake_x, snake_y in coords:
-                if snake_x == x and snake_y == y:
-                    wrong_coordinates = True
-
-        self.coordinates = [x, y]
+            if (x, y) not in snake_coords:
+                break
+        self.coordinates = (x, y)
 
         app.canvas.create_oval(x, y, x + app.space_size, y + app.space_size, fill=app.food_color, tag="food")
 
@@ -288,7 +280,7 @@ class Popup:
         self.food_color.button.config(bg=FOOD_COLOR)
         self.background_color.button.config(bg=BACKGROUND_COLOR)
 
-    def change_game_width(self, Event=None):
+    def change_game_width(self):
         width = int(self.game_width.spinbox.get())
 
         division_width = width / self.parent.space_size
@@ -306,7 +298,7 @@ class Popup:
         else:
             self.parent.game_width = width
 
-    def change_game_height(self, Event=None):
+    def change_game_height(self):
         height = int(self.game_height.spinbox.get())
 
         division_height = height / self.parent.space_size
@@ -325,11 +317,11 @@ class Popup:
         else:
             self.parent.game_height = height
 
-    def change_game_speed(self, Event=None):
+    def change_game_speed(self):
         self.parent.game_speed = int(self.game_speed.spinbox.get())
         self.parent.old_game_speed = self.parent.game_speed
 
-    def change_space_size(self, Event=None):
+    def change_space_size(self):
         self.parent.space_size = int(self.space_size.spinbox.get())
 
         width = int(self.game_width.spinbox.get())
@@ -369,7 +361,7 @@ class Popup:
         self.game_width.spinbox.config(increment=self.parent.space_size)
         self.game_height.spinbox.config(increment=self.parent.space_size)
 
-    def change_body_parts(self, Event=None):
+    def change_body_parts(self):
         self.parent.body_parts = int(self.body_parts.spinbox.get())
 
     def change_snake_color(self):
@@ -426,12 +418,15 @@ class App:
 
         self.before_new_game()
 
+    def speed_up(self):
+        self.game_speed = 10
+
     def bind_keys(self):
         self.win.bind('<Left>', lambda event: self.change_direction('left'))
         self.win.bind('<Right>', lambda event: self.change_direction('right'))
         self.win.bind('<Up>', lambda event: self.change_direction('up'))
         self.win.bind('<Down>', lambda event: self.change_direction('down'))
-        self.win.bind('<space>', self.speed_up)
+        self.win.bind('<space>', lambda event: self.speed_up())
 
     def unbind_keys(self):
         self.win.unbind('<Left>')
@@ -439,9 +434,6 @@ class App:
         self.win.unbind('<Up>')
         self.win.unbind('<Down>')
         self.win.unbind('<space>')
-
-    def speed_up(self, event):
-        self.game_speed = 10
 
     def win_init(self):
         self.win.update()
@@ -461,7 +453,7 @@ class App:
         self.win_init()
 
     def before_new_game(self):
-        self.new_game_text = self.canvas.create_text(
+        self.canvas.create_text(
             self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
             font=('consolas', 25),
             text="Press any key to\nstart a new game...", fill="#FFFFFF",
@@ -480,7 +472,7 @@ class App:
     async def blink_text(self):
         colors = ["#FFFFFF", "#FF0000", "#00FF00", "#0000FF"]
 
-        while True:
+        while not self.stop_task:
             current_color = self.canvas.itemconfigure("newgame")["fill"][4]
             next_color = colors[colors.index(current_color) - 1]
             self.canvas.itemconfigure("newgame", fill=next_color)
@@ -489,7 +481,7 @@ class App:
     async def win_update(self):
         while True:
             self.win.update()
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.05)
 
     async def wait_keypress(self):
         self.stop_task = False
@@ -502,12 +494,13 @@ class App:
             await asyncio.sleep(0.1)
 
         blink_text_task.cancel()
+        win_update_task.cancel()
 
         try:
             await blink_text_task
             await win_update_task
         except asyncio.CancelledError:
-            print("\nАсинхронная задача остановлена!")
+            pass
 
     def close(self):
         self.stop_task = True
@@ -597,7 +590,7 @@ class App:
         self.next_turn(self.snake, self.food)
 
     def options(self):
-        popup = Popup(self)
+        Popup(self)
 
 
 if __name__ == '__main__':
