@@ -243,12 +243,13 @@ class Popup:
 
         self.popup.destroy()
 
+        self.parent.canvas.delete(ALL)
+        self.parent.canvas.config(bg=self.parent.bg_color)
+
         if resize_flag:
             self.parent.resize()
 
-        self.parent.canvas.delete(ALL)
-        self.parent.canvas.config(bg=self.parent.bg_color)
-        self.parent.before_new_game()
+        self.parent.new_game()
 
     def cancel_button(self):
         self.popup.destroy()
@@ -368,6 +369,87 @@ class Popup:
             self.bg_color_widget.button.config(bg=color)
 
 
+class Game:
+    def __init__(self, app):
+        self.app = app
+        self.score = 0
+        self.direction = 'down'
+        self.app.label_score.config(text="Score: 0")
+        self.game_speed = self.app.game_speed
+
+        self.app.win.bind('<Left>', lambda event: self.change_direction('left'))
+        self.app.win.bind('<Right>', lambda event: self.change_direction('right'))
+        self.app.win.bind('<Up>', lambda event: self.change_direction('up'))
+        self.app.win.bind('<Down>', lambda event: self.change_direction('down'))
+        self.app.win.bind('<space>', lambda event: self.speed_up())
+
+        self.snake = Snake(self.app)
+        self.food = Food(self.app, self.snake.coordinates)
+
+        self.next_turn(self.snake, self.food)
+
+    def next_turn(self, snake, food):
+        x, y = snake.coordinates[0]
+
+        if self.direction == "up":
+            y -= self.app.space_size
+        elif self.direction == "down":
+            y += self.app.space_size
+        elif self.direction == "left":
+            x -= self.app.space_size
+        elif self.direction == "right":
+            x += self.app.space_size
+
+        snake.coordinates.insert(0, (x, y))
+        snake.squares.insert(0,
+                             self.app.canvas.create_rectangle(
+                                 x, y, x + self.app.space_size, y + self.app.space_size,
+                                 fill=self.app.snake_color)
+                             )
+
+        if x == food.coordinates[0] and y == food.coordinates[1]:
+            self.score += 1
+            self.app.label_score.config(text="Score: {}".format(self.score))
+            self.app.canvas.delete("food")
+
+            self.game_speed = self.app.game_speed
+            food = Food(self.app, snake.coordinates)
+        else:
+            del snake.coordinates[-1]
+            self.app.canvas.delete(snake.squares[-1])
+            del snake.squares[-1]
+
+        if self.check_collisions(snake.coordinates):
+            self.game_over()
+        else:
+            self.app.win.after(int(300 / self.game_speed), self.next_turn, snake, food)
+
+    def change_direction(self, new_direction):
+        if ((new_direction == 'left' and self.direction != 'right')
+                or (new_direction == 'right' and self.direction != 'left')
+                or (new_direction == 'up' and self.direction != 'down')
+                or (new_direction == 'down' and self.direction != 'up')):
+            self.direction = new_direction
+
+    def check_collisions(self, coords):
+
+        x, y = coords[0]
+        if (x < 0 or x >= self.app.game_width) or (y < 0 or y >= self.app.game_height):
+            return True
+
+        if len(coords) != len(set(coords)):
+            return True
+
+        return False
+
+    def speed_up(self):
+        self.game_speed = 10
+
+    def game_over(self):
+        self.app.before_new_game()
+        del self
+
+
 class App:
     def __init__(self):
         self.win = Tk()
@@ -382,14 +464,10 @@ class App:
         self.snake_color = SNAKE_COLOR
         self.food_color = FOOD_COLOR
         self.bg_color = BG_COLOR
+        self.blink_text = False
 
-        self.score = 0
-        self.direction = 'down'
-        self.old_game_speed = self.game_speed
-        self.stop_task = True
-
-        self.label = Label(self.win, text="Score: {}".format(self.score), font=('consolas', 40))
-        self.label.pack()
+        self.label_score = Label(self.win, text="Score: 0", font=('consolas', 40))
+        self.label_score.pack()
 
         self.canvas = Canvas(self.win, bg=self.bg_color, height=self.game_height, width=self.game_width)
         self.canvas.pack()
@@ -404,30 +482,66 @@ class App:
 
         self.win.protocol("WM_DELETE_WINDOW", self.close)
 
-        self.before_new_game()
+        self.keypress_text()
 
-    def speed_up(self):
-        self.game_speed = 10
-
-    def bind_keys(self):
-        self.win.bind('<Left>', lambda event: self.change_direction('left'))
-        self.win.bind('<Right>', lambda event: self.change_direction('right'))
-        self.win.bind('<Up>', lambda event: self.change_direction('up'))
-        self.win.bind('<Down>', lambda event: self.change_direction('down'))
-        self.win.bind('<space>', lambda event: self.speed_up())
-
-    def unbind_keys(self):
+    def before_new_game(self):
+        self.canvas.delete(ALL)
+        self.canvas.create_text(
+            self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2 - 120,
+            font=('consolas', 60),
+            text="GAME OVER",
+            fill="red",
+            tags="gameover"
+        )
         self.win.unbind('<Left>')
         self.win.unbind('<Right>')
         self.win.unbind('<Up>')
         self.win.unbind('<Down>')
         self.win.unbind('<space>')
 
+        self.win.unbind("<Button-1>")
+        self.win.unbind("<Button-2>")
+        self.win.unbind("<Button-3>")
+        self.win.unbind("<Motion>")
+        self.win.config(cursor="")
+
+        self.menu_bar.entryconfig(1, state="normal")
+        self.menu_bar.entryconfig(2, state="normal")
+
+        self.keypress_text()
+
+    def keypress_text(self):
+        if not self.blink_text:
+            self.canvas.create_text(
+                self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
+                font=('consolas', 25),
+                text="Press any key to\nstart a new game...", fill="#FFFFFF",
+                tags="newgame"
+            )
+            asyncio.run(self.wait_keypress())
+
+    def new_game(self, event=None):
+        self.blink_text = False
+
+        self.menu_bar.entryconfig(1, state="disabled")
+        self.menu_bar.entryconfig(2, state="disabled")
+        self.canvas.delete(ALL)
+
+        self.win.bind("<Button-1>", lambda e: "break")
+        self.win.bind("<Button-2>", lambda e: "break")
+        self.win.bind("<Button-3>", lambda e: "break")
+        self.win.bind("<Motion>", lambda e: "break")
+        self.win.config(cursor="none")
+
+        self.win.update()
+
+        Game(self)
+
     def window_init(self):
         self.win.update()
 
         self.window_width = self.canvas.winfo_width()
-        self.window_height = self.canvas.winfo_height() + self.label.winfo_height() + self.menu_bar.winfo_height()
+        self.window_height = self.canvas.winfo_height() + self.label_score.winfo_height() + self.menu_bar.winfo_height()
 
         self.x = int(self.win.winfo_screenwidth() / 2 - self.window_width / 2)
         self.y = int(self.win.winfo_screenheight() / 2 - self.window_height / 2)
@@ -440,26 +554,17 @@ class App:
         self.canvas.config(height=self.game_height, width=self.game_width)
         self.window_init()
 
-    def before_new_game(self):
-        self.canvas.create_text(
-            self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
-            font=('consolas', 25),
-            text="Press any key to\nstart a new game...", fill="#FFFFFF",
-            tags="newgame"
-        )
+    def close(self):
+        self.blink_text = False
+        self.win.destroy()
 
-        self.unbind_keys()
+    def options(self):
+        Popup(self)
 
-        self.menu_bar.entryconfig(1, state="normal")
-        self.menu_bar.entryconfig(2, state="normal")
-
-        if self.stop_task:
-            asyncio.run(self.wait_keypress())
-
-    async def blink_text(self):
+    async def text_blinking(self):
         colors = ["#FFFFFF", "#FF0000", "#00FF00", "#0000FF"]
 
-        while not self.stop_task:
+        while self.blink_text:
             current_color = self.canvas.itemconfigure("newgame")["fill"][4]
             next_color = colors[colors.index(current_color) - 1]
             self.canvas.itemconfigure("newgame", fill=next_color)
@@ -471,13 +576,13 @@ class App:
             await asyncio.sleep(0.05)
 
     async def wait_keypress(self):
-        self.stop_task = False
+        self.blink_text = True
         self.win.bind("<KeyPress>", self.new_game)
 
-        blink_text_task = asyncio.create_task(self.blink_text())
+        blink_text_task = asyncio.create_task(self.text_blinking())
         win_update_task = asyncio.create_task(self.win_update())
 
-        while not self.stop_task:
+        while self.blink_text:
             await asyncio.sleep(0.1)
 
         blink_text_task.cancel()
@@ -489,100 +594,7 @@ class App:
         except asyncio.CancelledError:
             pass
 
-    def close(self):
-        self.stop_task = True
-        self.win.destroy()
-
-    def run(self):
-        self.win.mainloop()
-
-    def next_turn(self, snake, food):
-        x, y = snake.coordinates[0]
-
-        if self.direction == "up":
-            y -= self.space_size
-        elif self.direction == "down":
-            y += self.space_size
-        elif self.direction == "left":
-            x -= self.space_size
-        elif self.direction == "right":
-            x += self.space_size
-
-        snake.coordinates.insert(0, (x, y))
-        snake.squares.insert(0,
-                             self.canvas.create_rectangle(
-                                 x, y, x + self.space_size, y + self.space_size,
-                                 fill=self.snake_color)
-                             )
-
-        if x == food.coordinates[0] and y == food.coordinates[1]:
-            self.score += 1
-            self.label.config(text="Score: {}".format(self.score))
-            self.canvas.delete("food")
-
-            self.game_speed = self.old_game_speed
-            food = Food(self, snake.coordinates)
-        else:
-            del snake.coordinates[-1]
-            self.canvas.delete(snake.squares[-1])
-            del snake.squares[-1]
-
-        if self.check_collisions(snake.coordinates):
-            self.game_over()
-        else:
-            self.win.after(int(300 / self.game_speed), self.next_turn, snake, food)
-
-    def change_direction(self, new_direction):
-        if ((new_direction == 'left' and self.direction != 'right')
-                or (new_direction == 'right' and self.direction != 'left')
-                or (new_direction == 'up' and self.direction != 'down')
-                or (new_direction == 'down' and self.direction != 'up')):
-            self.direction = new_direction
-
-    def check_collisions(self, coords):
-
-        x, y = coords[0]
-        if (x < 0 or x >= self.game_width) or (y < 0 or y >= self.game_height):
-            return True
-
-        if len(coords) != len(set(coords)):
-            return True
-
-        return False
-
-    def game_over(self):
-        self.canvas.delete(ALL)
-        self.canvas.create_text(
-            self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2 - 120,
-            font=('consolas', 60),
-            text="GAME OVER",
-            fill="red",
-            tags="gameover"
-        )
-        self.game_speed = self.old_game_speed
-        self.before_new_game()
-
-    def new_game(self, event=None):
-        self.stop_task = True
-        self.menu_bar.entryconfig(1, state="disabled")
-        self.menu_bar.entryconfig(2, state="disabled")
-
-        self.canvas.delete(ALL)
-
-        self.score = 0
-        self.direction = 'down'
-        self.label.config(text="Score: 0")
-        self.bind_keys()
-
-        self.snake = Snake(self)
-        self.food = Food(self, self.snake.coordinates)
-
-        self.next_turn(self.snake, self.food)
-
-    def options(self):
-        Popup(self)
-
 
 if __name__ == '__main__':
     app = App()
-    app.run()
+    app.win.mainloop()
