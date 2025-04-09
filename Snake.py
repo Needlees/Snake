@@ -24,29 +24,27 @@ BG_COLOR = "#000000"
 
 
 class Snake:
-    def __init__(self, app):
+    def __init__(self, game):
         self.coordinates = []
         self.squares = []
+        self.game = game
 
-        for i in range(0, app.body_parts):
+        for i in range(0, self.game.app.body_parts):
             self.coordinates.append((-i, -i))
-            self.squares.append(
-                app.canvas.create_rectangle(
-                    0, 0, app.space_size, app.space_size,
-                    fill=app.snake_color)
-            )
+            self.squares.append(self.game.app.create_snake_square(0, 0))
 
 
 class Food:
-    def __init__(self, app, snake_coords):
+    def __init__(self, game):
+        self.game = game
         while True:
-            x = randint(0, int(app.game_width / app.space_size) - 1) * app.space_size
-            y = randint(0, int(app.game_height / app.space_size) - 1) * app.space_size
-            if (x, y) not in snake_coords:
+            x = randint(0, int(self.game.app.game_width / self.game.app.space_size) - 1) * self.game.app.space_size
+            y = randint(0, int(self.game.app.game_height / self.game.app.space_size) - 1) * self.game.app.space_size
+            if (x, y) not in self.game.snake.coordinates:
                 break
         self.coordinates = (x, y)
 
-        app.canvas.create_oval(x, y, x + app.space_size, y + app.space_size, fill=app.food_color, tag="food")
+        self.game.app.create_food_oval(x, y)
 
 
 class CustomWidget:
@@ -374,22 +372,15 @@ class Game:
         self.app = app
         self.score = 0
         self.direction = 'down'
-        self.app.label_score.config(text="Score: 0")
         self.game_speed = self.app.game_speed
 
-        self.app.win.bind('<Left>', lambda event: self.change_direction('left'))
-        self.app.win.bind('<Right>', lambda event: self.change_direction('right'))
-        self.app.win.bind('<Up>', lambda event: self.change_direction('up'))
-        self.app.win.bind('<Down>', lambda event: self.change_direction('down'))
-        self.app.win.bind('<space>', lambda event: self.speed_up())
+        self.snake = Snake(self)
+        self.food = Food(self)
 
-        self.snake = Snake(self.app)
-        self.food = Food(self.app, self.snake.coordinates)
+        self.next_turn()
 
-        self.next_turn(self.snake, self.food)
-
-    def next_turn(self, snake, food):
-        x, y = snake.coordinates[0]
+    def next_turn(self):
+        x, y = self.snake.coordinates[0]
 
         if self.direction == "up":
             y -= self.app.space_size
@@ -400,29 +391,23 @@ class Game:
         elif self.direction == "right":
             x += self.app.space_size
 
-        snake.coordinates.insert(0, (x, y))
-        snake.squares.insert(0,
-                             self.app.canvas.create_rectangle(
-                                 x, y, x + self.app.space_size, y + self.app.space_size,
-                                 fill=self.app.snake_color)
-                             )
+        self.snake.coordinates.insert(0, (x, y))
+        self.snake.squares.insert(0, self.app.create_snake_square(x, y))
 
-        if x == food.coordinates[0] and y == food.coordinates[1]:
+        if x == self.food.coordinates[0] and y == self.food.coordinates[1]:
             self.score += 1
-            self.app.label_score.config(text="Score: {}".format(self.score))
-            self.app.canvas.delete("food")
+            self.app.respawn_food()
 
             self.game_speed = self.app.game_speed
-            food = Food(self.app, snake.coordinates)
+            self.food = Food(self)
         else:
-            del snake.coordinates[-1]
-            self.app.canvas.delete(snake.squares[-1])
-            del snake.squares[-1]
+            self.snake.coordinates.pop()
+            self.app.delete_snake_tail(self.snake.squares.pop())
 
-        if self.check_collisions(snake.coordinates):
+        if self.check_collisions(self.snake.coordinates):
             self.game_over()
         else:
-            self.app.win.after(int(300 / self.game_speed), self.next_turn, snake, food)
+            self.app.win.after(int(300 / self.game_speed), self.next_turn)
 
     def change_direction(self, new_direction):
         if ((new_direction == 'left' and self.direction != 'right')
@@ -432,14 +417,10 @@ class Game:
             self.direction = new_direction
 
     def check_collisions(self, coords):
-
         x, y = coords[0]
-        if (x < 0 or x >= self.app.game_width) or (y < 0 or y >= self.app.game_height):
+        if ((x < 0 or x >= self.app.game_width) or (y < 0 or y >= self.app.game_height) or
+                len(coords) != len(set(coords))):
             return True
-
-        if len(coords) != len(set(coords)):
-            return True
-
         return False
 
     def speed_up(self):
@@ -482,7 +463,26 @@ class App:
 
         self.win.protocol("WM_DELETE_WINDOW", self.close)
 
-        self.keypress_text()
+        self.show_keypress_text()
+
+    def create_snake_square(self, x, y):
+        return self.canvas.create_rectangle(
+            x, y, x + self.space_size, y + self.space_size,
+            fill=self.snake_color
+        )
+
+    def create_food_oval(self, x, y):
+        return self.canvas.create_oval(
+            x, y, x + self.space_size, y + self.space_size,
+            fill=self.food_color, tags="food"
+        )
+
+    def delete_snake_tail(self, square):
+        self.canvas.delete(square)
+
+    def respawn_food(self):
+        self.label_score.config(text=f"Score: {self.game.score}")
+        self.canvas.delete("food")
 
     def before_new_game(self):
         self.canvas.delete(ALL)
@@ -508,9 +508,9 @@ class App:
         self.menu_bar.entryconfig(1, state="normal")
         self.menu_bar.entryconfig(2, state="normal")
 
-        self.keypress_text()
+        self.show_keypress_text()
 
-    def keypress_text(self):
+    def show_keypress_text(self):
         if not self.blink_text:
             self.canvas.create_text(
                 self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
@@ -526,16 +526,22 @@ class App:
         self.menu_bar.entryconfig(1, state="disabled")
         self.menu_bar.entryconfig(2, state="disabled")
         self.canvas.delete(ALL)
+        self.label_score.config(text="Score: 0")
 
+        self.win.update()
+
+        self.game = Game(self)
+
+        self.win.bind('<Left>', lambda event: self.game.change_direction('left'))
+        self.win.bind('<Right>', lambda event: self.game.change_direction('right'))
+        self.win.bind('<Up>', lambda event: self.game.change_direction('up'))
+        self.win.bind('<Down>', lambda event: self.game.change_direction('down'))
+        self.win.bind('<space>', lambda event: self.game.speed_up())
         self.win.bind("<Button-1>", lambda e: "break")
         self.win.bind("<Button-2>", lambda e: "break")
         self.win.bind("<Button-3>", lambda e: "break")
         self.win.bind("<Motion>", lambda e: "break")
         self.win.config(cursor="none")
-
-        self.win.update()
-
-        Game(self)
 
     def window_init(self):
         self.win.update()
@@ -559,7 +565,7 @@ class App:
         self.win.destroy()
 
     def options(self):
-        Popup(self)
+        self.popup = Popup(self)
 
     async def text_blinking(self):
         colors = ["#FFFFFF", "#FF0000", "#00FF00", "#0000FF"]
