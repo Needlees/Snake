@@ -1,26 +1,9 @@
 import asyncio
-from tkinter import *
 from tkinter import colorchooser
 from random import randint
 
-GAME_WIDTH_MIN = 400
-GAME_HEIGHT_MIN = 400
-GAME_WIDTH_MAX = 1800
-GAME_HEIGHT_MAX = 1100
-GAME_WIDTH = 990
-GAME_HEIGHT = 690
-SPEED_MAX = 10
-SPEED_MIN = 1
-SPEED = 4
-SPACE_SIZE_MIN = 10
-SPACE_SIZE_MAX = 100
-SPACE_SIZE = 30
-BODY_PARTS_MIN = 3
-BODY_PARTS_MAX = 50
-BODY_PARTS = 9
-SNAKE_COLOR = "#88FF88"
-FOOD_COLOR = "#FF0000"
-BG_COLOR = "#000000"
+from settings import *
+from custom_widget import *
 
 
 class Snake:
@@ -48,51 +31,6 @@ class Food:
         self.coordinates = (x, y)
 
         self.game.app.draw_food(x, y)
-
-
-class CustomWidget:
-    def __init__(self, params):
-        self.parent = params['parent']
-        self.label_text = params['label']
-        self.row = params['row']
-        self.command = params['command'] if 'command' in params else ""
-        self.default_text = params['default_text']
-        self.default_fg = params['default_fg'] if 'default_fg' in params else "#000000"
-
-        # Label before widget
-        label = Label(self.parent, text=self.label_text, height=2)
-        label.grid(row=self.row, column=0)
-        # Widget
-        # Label after widget
-        label_min_max = Label(self.parent, text=self.default_text, height=2, fg=self.default_fg)
-        label_min_max.grid(row=self.row, column=2)
-
-
-class CustomColorButton(CustomWidget):
-
-    def __init__(self, params):
-        super().__init__(params)
-        self.bg = params['bg']
-
-        # Widget
-        self.button = Button(self.parent, relief="sunken", borderwidth=2, bg=self.bg, width=14, command=self.command)
-        self.button.grid(row=self.row, column=1)
-
-
-class CustomSpinbox(CustomWidget):
-
-    def __init__(self, params):
-        super().__init__(params)
-        self.var_value = params['var_value']
-        self.value_from = params['from']
-        self.value_to = params['to']
-        self.increment = params['increment'] if 'increment' in params else 1
-
-        # Widget
-        self.text_var = StringVar(value=self.var_value)
-        self.spinbox = Spinbox(self.parent, from_=self.value_from, to=self.value_to, increment=self.increment,
-                               textvariable=self.text_var, width=14, command=self.command, state="readonly")
-        self.spinbox.grid(row=self.row, column=1)
 
 
 class Popup:
@@ -403,7 +341,7 @@ class Game:
             return True
         return False
 
-    def speed_up(self):
+    def speed_up(self, Event=None):
         self.game_speed = 10
 
     def game_over(self):
@@ -500,7 +438,7 @@ class App:
             )
             asyncio.run(self.wait_keypress())
 
-    def new_game(self, event=None):
+    def new_game(self, Event=None):
         self.blink_text = False
 
         self.canvas.delete(ALL)
@@ -511,7 +449,7 @@ class App:
         self.win.bind('<Right>', lambda event: self.game.change_direction('right'))
         self.win.bind('<Up>', lambda event: self.game.change_direction('up'))
         self.win.bind('<Down>', lambda event: self.game.change_direction('down'))
-        self.win.bind('<space>', lambda event: self.game.speed_up())
+        self.win.bind('<space>', self.game.speed_up)
         self.win.bind("<Button-1>", lambda e: "break")
         self.win.bind("<Button-2>", lambda e: "break")
         self.win.bind("<Button-3>", lambda e: "break")
