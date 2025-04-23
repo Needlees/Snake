@@ -1,16 +1,18 @@
 import asyncio
+from tkinter import *
 from tkinter import colorchooser
 from random import randint
+from typing import Optional
 
 from settings import *
-from custom_widget import *
+from custom_widget import CustomColorButton, CustomSpinbox
 
 
 class Snake:
-    def __init__(self, game):
-        self.coordinates = []
-        self.squares = []
-        self.game = game
+    def __init__(self, game) -> None:
+        self.coordinates: list[tuple[int, int]] = []
+        self.squares: list = []
+        self.game: Game = game
 
         for i in range(0, self.game.app.body_parts):
             self.coordinates.append((-i, -i))
@@ -18,36 +20,47 @@ class Snake:
 
 
 class Food:
-    def __init__(self, game):
-        self.game = game
+    def __init__(self, game) -> None:
+        self.__x: int = 0
+        self.__y: int = 0
+        self.game: Game = game
         self.respawn()
 
-    def respawn(self):
-        while True:
-            x = randint(0, int(self.game.app.game_width / self.game.app.space_size) - 1) * self.game.app.space_size
-            y = randint(0, int(self.game.app.game_height / self.game.app.space_size) - 1) * self.game.app.space_size
-            if (x, y) not in self.game.snake.coordinates:
-                break
-        self.coordinates = (x, y)
+    def _random_position(self) -> tuple[int, int]:
+        return (
+            randint(0, int(self.game.app.game_width / self.game.app.space_size) - 1) * self.game.app.space_size,
+            randint(0, int(self.game.app.game_height / self.game.app.space_size) - 1) * self.game.app.space_size
+        )
 
-        self.game.app.draw_food(x, y)
+    def respawn(self) -> None:
+        while True:
+            coords: tuple = self._random_position()
+            if coords != self.coordinates and coords not in self.game.snake.coordinates:
+                break
+        self.__x = coords[0]
+        self.__y = coords[1]
+        self.game.app.draw_food(self.__x, self.__y)
+
+    @property
+    def coordinates(self) -> tuple[int, int]:
+        return self.__x, self.__y
 
 
 class Popup:
-    def __init__(self, parent):
-        self.parent = parent
-        self.snake_color = self.parent.snake_color
-        self.food_color = self.parent.food_color
-        self.bg_color = self.parent.bg_color
+    def __init__(self, parent) -> None:
+        self.parent: App = parent
+        self.snake_color: str = self.parent.snake_color
+        self.food_color: str = self.parent.food_color
+        self.bg_color: str = self.parent.bg_color
 
-        self.popup = Toplevel(self.parent.win)
+        self.popup: Toplevel = Toplevel(self.parent.win)
         self.popup.title("Options")
         self.popup.resizable(False, False)
 
-        frame = Frame(self.popup)
+        frame: Frame = Frame(self.popup)
         frame.grid()
 
-        self.width_widget = CustomSpinbox({
+        self.width_widget: CustomSpinbox = CustomSpinbox({
             'parent': frame,
             'label': "Game width:",
             'row': 0,
@@ -58,7 +71,7 @@ class Popup:
             'command': self.change_game_width,
             'default_text': f"(min: {GAME_WIDTH_MIN}, max: {GAME_WIDTH_MAX}, step:*)"
         })
-        self.height_widget = CustomSpinbox({
+        self.height_widget: CustomSpinbox = CustomSpinbox({
             'parent': frame,
             'label': "Game height:",
             'row': 1,
@@ -69,7 +82,7 @@ class Popup:
             'command': self.change_game_height,
             'default_text': f"(min: {GAME_HEIGHT_MIN}, max: {GAME_HEIGHT_MAX}, step:*)"
         })
-        self.space_size_widget = CustomSpinbox({
+        self.space_size_widget: CustomSpinbox = CustomSpinbox({
             'parent': frame,
             'label': "Space size:",
             'row': 2,
@@ -80,7 +93,7 @@ class Popup:
             'command': self.change_space_size,
             'default_text': f"(min: {SPACE_SIZE_MIN}, max: {SPACE_SIZE_MAX}, step: 10)"
         })
-        self.game_speed_widget = CustomSpinbox({
+        self.game_speed_widget: CustomSpinbox = CustomSpinbox({
             'parent': frame,
             'label': "Game speed:",
             'row': 3,
@@ -89,7 +102,7 @@ class Popup:
             'to': SPEED_MAX,
             'default_text': f"(min: {SPEED_MIN}, max: {SPEED_MAX})"
         })
-        self.body_parts_widget = CustomSpinbox({
+        self.body_parts_widget: CustomSpinbox = CustomSpinbox({
             'parent': frame,
             'label': "Body parts:",
             'row': 4,
@@ -98,7 +111,7 @@ class Popup:
             'to': BODY_PARTS_MAX,
             'default_text': f"(min: {BODY_PARTS_MIN}, max: {BODY_PARTS_MAX})"
         })
-        self.snake_color_widget = CustomColorButton({
+        self.snake_color_widget: CustomColorButton = CustomColorButton({
             'parent': frame,
             'label': "Snake color:",
             'row': 5,
@@ -107,7 +120,7 @@ class Popup:
             'default_text': f"(default: {self.parent.snake_color})",
             'default_fg': SNAKE_COLOR
         })
-        self.food_color_widget = CustomColorButton({
+        self.food_color_widget: CustomColorButton = CustomColorButton({
             'parent': frame,
             'label': "Food color:",
             'row': 6,
@@ -116,7 +129,7 @@ class Popup:
             'default_text': f"(default: {self.parent.food_color})",
             'default_fg': FOOD_COLOR
         })
-        self.bg_color_widget = CustomColorButton({
+        self.bg_color_widget: CustomColorButton = CustomColorButton({
             'parent': frame,
             'label': "Background:",
             'row': 7,
@@ -126,25 +139,25 @@ class Popup:
             'default_fg': BG_COLOR
         })
 
-        label_frame = Frame(self.popup)
+        label_frame: Frame = Frame(self.popup)
         label_frame.grid()
-        label = Label(label_frame, text="*step is equal to Space size")
+        label: Label = Label(label_frame, text="*step is equal to Space size")
         label.grid(row=0, column=0)
 
-        button_frame = Frame(self.popup)
+        button_frame: Frame = Frame(self.popup)
         button_frame.grid()
-        close_button = Button(button_frame, text="OK", width=10, command=self.ok_button)
+        close_button: Button = Button(button_frame, text="OK", width=10, command=self.ok_button)
         close_button.grid(row=0, column=0, padx=10, pady=10)
-        cancel_button = Button(button_frame, text="Cancel", width=10, command=self.cancel_button)
+        cancel_button: Button = Button(button_frame, text="Cancel", width=10, command=self.cancel_button)
         cancel_button.grid(row=0, column=1)
-        default_button = Button(button_frame, text="Default", width=10, command=self.default_button)
+        default_button: Button = Button(button_frame, text="Default", width=10, command=self.default_button)
         default_button.grid(row=0, column=2, padx=10)
 
         self.popup.update()
-        popup_width = self.popup.winfo_width()
-        popup_height = self.popup.winfo_height()
-        popup_x_center = self.parent.x_center + int((self.parent.window_width - popup_width) / 2)
-        popup_y_center = self.parent.y_center + int((self.parent.window_height - popup_height) / 2)
+        popup_width: int = self.popup.winfo_width()
+        popup_height: int = self.popup.winfo_height()
+        popup_x_center: int = self.parent.x_center + int((self.parent.window_width - popup_width) / 2)
+        popup_y_center: int = self.parent.y_center + int((self.parent.window_height - popup_height) / 2)
         self.popup.geometry(f"{popup_width}x{popup_height}+{popup_x_center}+{popup_y_center}")
 
         self.popup.transient(self.parent.win)
@@ -152,8 +165,8 @@ class Popup:
         self.popup.focus_set()
         self.popup.wait_window()
 
-    def ok_button(self):
-        resize_flag = False
+    def ok_button(self) -> None:
+        resize_flag: bool = False
 
         if (self.parent.game_width != int(self.width_widget.spinbox.get()) or
                 self.parent.game_height != int(self.height_widget.spinbox.get())):
@@ -178,10 +191,10 @@ class Popup:
 
         self.parent.new_game()
 
-    def cancel_button(self):
+    def cancel_button(self) -> None:
         self.popup.destroy()
 
-    def default_button(self):
+    def default_button(self) -> None:
         self.snake_color = SNAKE_COLOR
         self.food_color = FOOD_COLOR
         self.bg_color = BG_COLOR
@@ -197,11 +210,11 @@ class Popup:
         self.height_widget.spinbox.config(increment=SPACE_SIZE)
         self.width_widget.spinbox.config(increment=SPACE_SIZE)
 
-    def change_game_width(self, event=None):
-        width = int(self.width_widget.spinbox.get())
+    def change_game_width(self, event=None) -> None:
+        width: int = int(self.width_widget.spinbox.get())
 
-        division_width = width / int(self.space_size_widget.spinbox.get())
-        integer_division_width = width // int(self.space_size_widget.spinbox.get())
+        division_width: float = width / int(self.space_size_widget.spinbox.get())
+        integer_division_width: int = width // int(self.space_size_widget.spinbox.get())
 
         if width == GAME_WIDTH_MIN and integer_division_width != division_width:
             self.width_widget.text_var.set(str(self.parent.game_width))
@@ -210,11 +223,11 @@ class Popup:
         else:
             self.width_widget.text_var.set(str(width))
 
-    def change_game_height(self, event=None):
-        height = int(self.height_widget.spinbox.get())
+    def change_game_height(self, event=None) -> None:
+        height: int = int(self.height_widget.spinbox.get())
 
-        division_height = height / int(self.space_size_widget.spinbox.get())
-        integer_division_height = height // int(self.space_size_widget.spinbox.get())
+        division_height: float = height / int(self.space_size_widget.spinbox.get())
+        integer_division_height: int = height // int(self.space_size_widget.spinbox.get())
 
         if height == GAME_HEIGHT_MIN and integer_division_height != division_height:
             self.height_widget.text_var.set(str(self.parent.game_height))
@@ -223,8 +236,8 @@ class Popup:
         else:
             self.height_widget.text_var.set(str(height))
 
-    def change_space_size(self, event=None):
-        space_size = (int(self.space_size_widget.spinbox.get()) // 10) * 10
+    def change_space_size(self, event=None) -> None:
+        space_size: int = (int(self.space_size_widget.spinbox.get()) // 10) * 10
 
         if space_size < SPACE_SIZE_MIN:
             space_size = SPACE_SIZE_MIN
@@ -234,10 +247,10 @@ class Popup:
 
         self.space_size_widget.text_var.set(str(space_size))
 
-        width = int(self.width_widget.spinbox.get())
+        width: int = int(self.width_widget.spinbox.get())
 
-        division_width = width / space_size
-        integer_division_width = width // space_size
+        division_width: float = width / space_size
+        integer_division_width: int = width // space_size
 
         if width <= GAME_WIDTH_MIN or width >= GAME_WIDTH_MAX or integer_division_width != division_width:
 
@@ -248,10 +261,10 @@ class Popup:
             elif width < GAME_WIDTH_MIN:
                 width = integer_division_width * space_size + space_size
 
-        height = int(self.height_widget.spinbox.get())
+        height: int = int(self.height_widget.spinbox.get())
 
-        division_height = height / space_size
-        integer_division_height = height // space_size
+        division_height: float = height / space_size
+        integer_division_height: int = height // space_size
 
         if height <= GAME_HEIGHT_MIN or height >= GAME_HEIGHT_MAX or integer_division_height != division_height:
 
@@ -268,37 +281,40 @@ class Popup:
         self.height_widget.spinbox.config(increment=space_size)
         self.width_widget.spinbox.config(increment=space_size)
 
-    def change_snake_color(self):
-        if color := colorchooser.askcolor(title="Pick a color of shake")[1]:
+    def change_snake_color(self) -> None:
+        color: Optional[str] = colorchooser.askcolor(title="Pick a color of shake")[1]
+        if color:
             self.snake_color = color
             self.snake_color_widget.button.config(bg=color)
 
-    def change_food_color(self):
-        if color := colorchooser.askcolor(title="Pick a color of food")[1]:
+    def change_food_color(self) -> None:
+        color: Optional[str] = colorchooser.askcolor(title="Pick a color of food")[1]
+        if color:
             self.food_color = color
             self.food_color_widget.button.config(bg=color)
 
-    def change_bg_color(self):
-        if color := colorchooser.askcolor(title="Pick a background color")[1]:
+    def change_bg_color(self) -> None:
+        color: Optional[str] = colorchooser.askcolor(title="Pick a background color")[1]
+        if color:
             self.bg_color = color
             self.bg_color_widget.button.config(bg=color)
 
 
 class Game:
-    def __init__(self, app):
-        self.app = app
+    def __init__(self, app) -> None:
+        self.app: App = app
 
-    def reset(self):
-        self.score = 0
-        self.direction = 'down'
-        self.game_speed = self.app.game_speed
+    def reset(self) -> None:
+        self.score: int = 0
+        self.direction: str = 'down'
+        self.game_speed: int = self.app.game_speed
 
-        self.snake = Snake(self)
-        self.food = Food(self)
+        self.snake: Snake = Snake(self)
+        self.food: Food = Food(self)
 
         self.next_turn()
 
-    def next_turn(self):
+    def next_turn(self) -> None:
         x, y = self.snake.coordinates[0]
 
         if self.direction == "up":
@@ -327,30 +343,30 @@ class Game:
         else:
             self.app.win.after(int(300 / self.game_speed), self.next_turn)
 
-    def change_direction(self, new_direction):
+    def change_direction(self, new_direction: str) -> None:
         if ((new_direction == 'left' and self.direction != 'right')
                 or (new_direction == 'right' and self.direction != 'left')
                 or (new_direction == 'up' and self.direction != 'down')
                 or (new_direction == 'down' and self.direction != 'up')):
             self.direction = new_direction
 
-    def check_collisions(self, coords):
+    def check_collisions(self, coords: list[tuple[int, int]]) -> bool:
         x, y = coords[0]
         if ((x < 0 or x >= self.app.game_width) or (y < 0 or y >= self.app.game_height) or
                 len(coords) != len(set(coords))):
             return True
         return False
 
-    def speed_up(self, Event=None):
+    def speed_up(self, event=None) -> None:
         self.game_speed = 10
 
-    def game_over(self):
+    def game_over(self) -> None:
         self.app.init_new_game()
 
 
 class App:
-    def __init__(self):
-        self.win = Tk()
+    def __init__(self) -> None:
+        self.win: Tk = Tk()
         self.win.title("Snake game")
         self.win.resizable(False, False)
 
@@ -364,7 +380,7 @@ class App:
         self.bg_color = BG_COLOR
 
         self.blink_text = False
-        self.game = Game(self)
+        self.game: Game = Game(self)
 
         self.label_score = Label(self.win, text="Score: 0", font=('consolas', 40))
         self.label_score.pack()
@@ -384,26 +400,26 @@ class App:
 
         self.show_keypress_text()
 
-    def draw_snake_part(self, x, y):
+    def draw_snake_part(self, x: int, y: int) -> int:
         return self.canvas.create_rectangle(
             x, y, x + self.space_size, y + self.space_size,
             fill=self.snake_color
         )
 
-    def draw_food(self, x, y):
+    def draw_food(self, x, y) -> int:
         return self.canvas.create_oval(
             x, y, x + self.space_size, y + self.space_size,
             fill=self.food_color, tags="food"
         )
 
-    def erase_snake_tail(self, square):
+    def erase_snake_tail(self, square) -> None:
         self.canvas.delete(square)
 
-    def redraw_food(self):
+    def redraw_food(self) -> None:
         self.label_score.config(text=f"Score: {self.game.score}")
         self.canvas.delete("food")
 
-    def init_new_game(self):
+    def init_new_game(self) -> None:
         self.canvas.delete(ALL)
         self.canvas.create_text(
             self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2 - 120,
@@ -428,7 +444,7 @@ class App:
 
         self.show_keypress_text()
 
-    def show_keypress_text(self):
+    def show_keypress_text(self) -> None:
         if not self.blink_text:
             self.canvas.create_text(
                 self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
@@ -438,7 +454,7 @@ class App:
             )
             asyncio.run(self.wait_keypress())
 
-    def new_game(self, Event=None):
+    def new_game(self, event=None) -> None:
         self.blink_text = False
 
         self.canvas.delete(ALL)
@@ -460,7 +476,7 @@ class App:
 
         self.game.reset()
 
-    def center_window(self):
+    def center_window(self) -> None:
         self.win.update()
 
         self.window_width = self.canvas.winfo_width()
@@ -470,33 +486,34 @@ class App:
 
         self.win.geometry(f"{self.window_width}x{self.window_height}+{self.x_center}+{self.y_center}")
 
-    def win_resize(self):
+    def win_resize(self) -> None:
         self.win.geometry(f"{GAME_WIDTH_MAX + 200}x{GAME_HEIGHT_MAX + 200}")
         self.canvas.config(height=self.game_height, width=self.game_width)
         self.center_window()
 
-    def close(self):
+    def close(self) -> None:
         self.blink_text = False
         self.win.destroy()
 
-    def options(self):
+    def options(self) -> None:
         self.popup = Popup(self)
 
-    async def text_blinking(self):
-        colors = ["#FFFFFF", "#FF0000", "#00FF00", "#0000FF"]
-
+    async def text_blinking(self) -> None:
         while self.blink_text:
-            current_color = self.canvas.itemconfigure("newgame")["fill"][4]
-            next_color = colors[colors.index(current_color) - 1]
+            config = self.canvas.itemconfigure("newgame")
+            if not config or "fill" not in config:
+                break
+            current_color = config["fill"][4]
+            next_color = BLINKING_COLORS[BLINKING_COLORS.index(current_color) - 1]
             self.canvas.itemconfigure("newgame", fill=next_color)
             await asyncio.sleep(1)
 
-    async def win_update(self):
+    async def win_update(self) -> None:
         while True:
             self.win.update()
             await asyncio.sleep(0.05)
 
-    async def wait_keypress(self):
+    async def wait_keypress(self) -> None:
         self.blink_text = True
         self.win.bind("<KeyPress>", self.new_game)
 
