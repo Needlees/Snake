@@ -1,5 +1,4 @@
 from tkinter import *
-from typing import Union, Optional
 
 
 class CustomWidget:
@@ -27,7 +26,8 @@ class CustomColorButton(CustomWidget):
         self.bg: str = params['bg']
 
         # Widget
-        self.button: Button = Button(self.parent, relief="sunken", borderwidth=2, bg=self.bg, width=14, command=self.command)
+        self.button: Button = Button(self.parent, relief="sunken", borderwidth=2, bg=self.bg, width=14,
+                                     command=self.command)
         self.button.grid(row=self.row, column=1)
 
 
@@ -43,5 +43,5 @@ class CustomSpinbox(CustomWidget):
         # Widget
         self.text_var: Variable = StringVar(value=self.var_value)
         self.spinbox: Spinbox = Spinbox(self.parent, from_=self.value_from, to=self.value_to, increment=self.increment,
-                               textvariable=self.text_var, width=14, command=self.command, state="readonly")
+                                        textvariable=self.text_var, width=14, command=self.command, state="readonly")
         self.spinbox.grid(row=self.row, column=1)

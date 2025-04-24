@@ -26,15 +26,9 @@ class Food:
         self.game: Game = game
         self.respawn()
 
-    def _random_position(self) -> tuple[int, int]:
-        return (
-            randint(0, int(self.game.app.game_width / self.game.app.space_size) - 1) * self.game.app.space_size,
-            randint(0, int(self.game.app.game_height / self.game.app.space_size) - 1) * self.game.app.space_size
-        )
-
     def respawn(self) -> None:
         while True:
-            coords: tuple = self._random_position()
+            coords: tuple[int, int] = self.game.app.random_position()
             if coords != self.coordinates and coords not in self.game.snake.coordinates:
                 break
         self.__x = coords[0]
@@ -44,6 +38,11 @@ class Food:
     @property
     def coordinates(self) -> tuple[int, int]:
         return self.__x, self.__y
+
+    @coordinates.setter
+    def coordinates(self, coords) -> None:
+        self.__x = coords[0]
+        self.__y = coords[1]
 
 
 class Popup:
@@ -332,7 +331,8 @@ class Game:
         if x == self.food.coordinates[0] and y == self.food.coordinates[1]:
             self.score += 1
             self.game_speed = self.app.game_speed
-            self.app.redraw_food()
+            self.app.redraw_score()
+            self.app.erase_food()
             self.food.respawn()
         else:
             self.snake.coordinates.pop()
@@ -365,7 +365,7 @@ class Game:
 
 
 class App:
-    def __init__(self) -> None:
+    def __init__(self, debug=False) -> None:
         self.win: Tk = Tk()
         self.win.title("Snake game")
         self.win.resizable(False, False)
@@ -381,6 +381,7 @@ class App:
 
         self.blink_text = False
         self.game: Game = Game(self)
+        self.debug = debug
 
         self.label_score = Label(self.win, text="Score: 0", font=('consolas', 40))
         self.label_score.pack()
@@ -415,9 +416,17 @@ class App:
     def erase_snake_tail(self, square) -> None:
         self.canvas.delete(square)
 
-    def redraw_food(self) -> None:
-        self.label_score.config(text=f"Score: {self.game.score}")
+    def erase_food(self):
         self.canvas.delete("food")
+
+    def redraw_score(self) -> None:
+        self.label_score.config(text=f"Score: {self.game.score}")
+
+    def random_position(self) -> tuple[int, int]:
+        return (
+            randint(0, int(self.game_width / self.space_size) - 1) * self.space_size,
+            randint(0, int(self.game_height / self.space_size) - 1) * self.space_size
+        )
 
     def init_new_game(self) -> None:
         self.canvas.delete(ALL)
@@ -445,14 +454,15 @@ class App:
         self.show_keypress_text()
 
     def show_keypress_text(self) -> None:
-        if not self.blink_text:
-            self.canvas.create_text(
-                self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
-                font=('consolas', 25),
-                text="Press any key to\nstart a new game...", fill="#FFFFFF",
-                tags="newgame"
-            )
-            asyncio.run(self.wait_keypress())
+        if not self.debug:
+            if not self.blink_text:
+                self.canvas.create_text(
+                    self.canvas.winfo_width() / 2, self.canvas.winfo_height() / 2,
+                    font=('consolas', 25),
+                    text="Press any key to\nstart a new game...", fill="#FFFFFF",
+                    tags="newgame"
+                )
+                asyncio.run(self.wait_keypress())
 
     def new_game(self, event=None) -> None:
         self.blink_text = False
